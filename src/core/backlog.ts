@@ -57,6 +57,7 @@ import { migrateDraftPrefixes, needsDraftPrefixMigration } from "./prefix-migrat
 import { calculateNewOrdinal, DEFAULT_ORDINAL_STEP, resolveOrdinalConflicts } from "./reorder.ts";
 import { SearchService } from "./search-service.ts";
 import { computeSequences, planMoveToSequence, planMoveToUnsequenced } from "./sequences.ts";
+import type { TaskDirectoryType } from "./cross-branch-tasks.ts";
 import {
 	type BranchTaskStateEntry,
 	findTaskInLocalBranches,
@@ -105,14 +106,26 @@ export interface TuiTaskEditResult {
 	reason?: TuiTaskEditFailureReason;
 }
 
-function buildLatestStateMap(
+const TERMINAL_TYPES = new Set<TaskDirectoryType>(["completed", "archived"]);
+
+export function buildLatestStateMap(
 	stateEntries: BranchTaskStateEntry[] = [],
 	localTasks: Array<Task & { lastModified?: Date; updatedDate?: string }> = [],
 ): Map<string, BranchTaskStateEntry> {
 	const latest = new Map<string, BranchTaskStateEntry>();
 	const update = (entry: BranchTaskStateEntry) => {
 		const existing = latest.get(entry.id);
-		if (!existing || entry.lastModified > existing.lastModified) {
+		if (!existing) {
+			latest.set(entry.id, entry);
+			return;
+		}
+		const incomingTerminal = TERMINAL_TYPES.has(entry.type);
+		const existingTerminal = TERMINAL_TYPES.has(existing.type);
+		if (incomingTerminal && !existingTerminal) {
+			latest.set(entry.id, entry);
+		} else if (!incomingTerminal && existingTerminal) {
+			// terminal state wins; don't overwrite
+		} else if (entry.lastModified > existing.lastModified) {
 			latest.set(entry.id, entry);
 		}
 	};

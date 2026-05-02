@@ -83,6 +83,27 @@ describe("MCP task_complete", () => {
 		expect(completedFiles.length).toBe(1);
 	});
 
+	it("writes status: Done to the file front matter even when source has a different status", async () => {
+		await server.testInterface.callTool({
+			params: {
+				name: "task_create",
+				arguments: { title: "Front matter task", status: "In Progress" },
+			},
+		});
+
+		// Call filesystem-level completeTask directly, bypassing the status check
+		const moved = await server.filesystem.completeTask("task-1");
+		expect(moved).toBe(true);
+
+		const completedFiles = await Array.fromAsync(
+			new Bun.Glob("task-1*.md").scan({ cwd: server.filesystem.completedDir, followSymlinks: true }),
+		);
+		expect(completedFiles.length).toBe(1);
+
+		const content = await Bun.file(`${server.filesystem.completedDir}/${completedFiles[0]}`).text();
+		expect(content).toContain("status: Done");
+	});
+
 	it("refuses to complete tasks that are not Done", async () => {
 		await server.testInterface.callTool({
 			params: {

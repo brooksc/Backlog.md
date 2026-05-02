@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
+import { buildLatestStateMap } from "../core/backlog.ts";
 import { loadRemoteTasks, resolveTaskConflict } from "../core/task-loader.ts";
+import type { BranchTaskStateEntry } from "../core/task-loader.ts";
 import type { GitOperations } from "../git/operations.ts";
 import type { Task } from "../types/index.ts";
 
@@ -179,5 +181,59 @@ describe("Parallel remote task loading", () => {
 		const resolved2 = resolveTaskConflict(localTask, remoteTask, statuses, "most_recent");
 		expect(resolved2.lastModified).toEqual(new Date("2025-06-13T12:00:00Z"));
 		expect(resolved2.title).toBe("Remote Task");
+	});
+});
+
+describe("buildLatestStateMap", () => {
+	it("completed state beats task state regardless of timestamp", () => {
+		const completedEntry: BranchTaskStateEntry = {
+			id: "task-1",
+			type: "completed",
+			lastModified: new Date("2025-01-01"),
+			branch: "feature",
+			path: "backlog/completed/task-1 - Test.md",
+		};
+
+		const localTasks = [
+			{
+				id: "task-1",
+				title: "Test",
+				status: "In Progress",
+				assignee: [],
+				createdDate: "2025-06-01",
+				labels: [],
+				dependencies: [],
+				lastModified: new Date("2025-06-01"),
+			} as Task & { lastModified: Date },
+		];
+
+		const result = buildLatestStateMap([completedEntry], localTasks);
+		expect(result.get("task-1")?.type).toBe("completed");
+	});
+
+	it("archived state beats task state regardless of timestamp", () => {
+		const archivedEntry: BranchTaskStateEntry = {
+			id: "task-2",
+			type: "archived",
+			lastModified: new Date("2025-01-01"),
+			branch: "feature",
+			path: "backlog/archive/tasks/task-2 - Test.md",
+		};
+
+		const localTasks = [
+			{
+				id: "task-2",
+				title: "Test",
+				status: "In Progress",
+				assignee: [],
+				createdDate: "2025-06-01",
+				labels: [],
+				dependencies: [],
+				lastModified: new Date("2025-06-01"),
+			} as Task & { lastModified: Date },
+		];
+
+		const result = buildLatestStateMap([archivedEntry], localTasks);
+		expect(result.get("task-2")?.type).toBe("archived");
 	});
 });

@@ -515,11 +515,11 @@ export class FileSystem {
 			if (!sourcePath || !taskFile) return false;
 
 			const targetPath = join(completedDir, taskFile);
-
-			// Ensure target directory exists
 			await this.ensureDirectoryExists(dirname(targetPath));
 
-			// Use rename for proper Git move detection
+			const task = parseTask(await Bun.file(sourcePath).text());
+			task.status = "Done";
+			await Bun.write(sourcePath, serializeTask(task));
 			await rename(sourcePath, targetPath);
 
 			return true;
